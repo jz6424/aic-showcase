@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AIC safety adapter: when a coding agent should ask first</title>
+<meta name="description" content="How the AIC safety adapter decides whether a coding agent acts or asks, version by version from v1 to v7, with the risk rater, two pre-registered clean tests and an interactive walk through the gate.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f7f6f2; --surface:#fffefb; --surface-2:#efede6; --surface-3:#e6e3da;
+  --line:rgba(28,27,24,.09); --line-2:rgba(28,27,24,.16);
+  --text:#1c1b18; --text-2:#55524b; --muted:#878279;
+  --accent:#a2480f; --accent-soft:#f3e4d6; --accent-mark:#d79a6b;
+  --act:#2f6b4a; --act-soft:#e2ede5;
+  --risk:#a8352c; --risk-soft:#f5e1de;
+  --sans:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.2,.7,.2,1);
+  --r-ctl:8px; --r-card:14px; --r-panel:18px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:72px}
+body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:3px}
+a:hover{color:#7d3609}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.num,.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.wrap{max-width:1200px;margin:0 auto;padding:0 32px}
+
+/* nav */
+header.top{position:sticky;top:0;z-index:10;background:rgba(247,246,242,.92);backdrop-filter:saturate(1.2) blur(8px);border-bottom:1px solid var(--line)}
+header.top .wrap{display:flex;align-items:center;justify-content:space-between;height:56px}
+.brand{display:flex;align-items:center;gap:10px;color:var(--text);text-decoration:none;font-weight:500}
+.brand svg{display:block}
+nav.links{display:flex;gap:24px}
+nav.links a{color:var(--text-2);text-decoration:none;font-size:14px;transition:color .15s var(--ease)}
+nav.links a:hover{color:var(--text)}
+.menu-btn{display:none}
+
+/* hero */
+.hero{padding:72px 0 40px}
+.hero-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:56px;align-items:center}
+.eyebrow{font:400 13px/1.4 var(--mono);color:var(--muted);margin:0 0 16px}
+h1{font-size:48px;line-height:1.1;font-weight:500;letter-spacing:-.02em;margin:0 0 20px;max-width:15ch}
+.lede{font-size:18px;color:var(--text-2);margin:0 0 32px;max-width:36em}
+.actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px;border-radius:var(--r-ctl);font:500 15px/1 var(--sans);text-decoration:none;border:1px solid transparent;cursor:pointer;transition:background-color .15s var(--ease),border-color .15s var(--ease),color .15s var(--ease),transform .1s var(--ease)}
+.btn:active{transform:scale(.98)}
+.btn-primary{background:var(--text);color:#fbfaf6}
+.btn-primary:hover{background:#34322d;color:#fff}
+.btn-quiet{color:var(--text);border-color:var(--line-2);background:transparent}
+.btn-quiet:hover{background:var(--surface-2);color:var(--text)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:48px;border-top:1px solid var(--line)}
+.stat{padding:20px 20px 0 0}
+.stat + .stat{padding-left:20px;border-left:1px solid var(--line)}
+.stat .label{font-size:13px;color:var(--text-2);margin:0 0 4px}
+.stat .figure{font:500 32px/1.15 var(--mono);font-variant-numeric:tabular-nums;margin:0}
+.stat .cmp{font-size:13px;color:var(--muted);margin:4px 0 0}
+
+/* hero visual: one decision card */
+.call-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-panel);padding:24px;box-shadow:0 1px 2px rgba(28,27,24,.04),0 12px 32px -12px rgba(28,27,24,.12)}
+.call-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:13px;color:var(--muted)}
+.cmd{font:400 14px/1.5 var(--mono);background:#1f1e1b;color:#efece4;border-radius:10px;padding:12px 16px;overflow-x:auto;white-space:pre}
+.cmd .p{color:#8f8a7f}
+.trace{list-style:none;margin:20px 0 0;padding:0}
+.trace li{display:grid;grid-template-columns:20px 1fr auto;gap:12px;align-items:start;padding:12px 0;border-top:1px solid var(--line)}
+.trace li:first-child{border-top:0}
+.trace .n{font:400 12px/20px var(--mono);color:var(--muted)}
+.trace .t{font-size:14px;line-height:20px}
+.trace .t small{display:block;color:var(--muted);font-size:13px}
+.trace .v{font:500 13px/20px var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+.verdict{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding:12px 16px;border-radius:10px;background:var(--accent-soft)}
+.verdict b{font-weight:500}
+
+/* sections */
+section.block{padding:88px 0;border-top:1px solid var(--line)}
+.sec-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:56px;margin-bottom:40px}
+h2{font-size:32px;line-height:1.2;font-weight:500;letter-spacing:-.01em;margin:0}
+.sec-head p{margin:0;color:var(--text-2);max-width:40em}
+.sec-head p + p{margin-top:12px}
+h3{font-size:18px;line-height:1.35;font-weight:500;margin:0 0 8px}
+p{margin:0 0 12px}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+.caption{font-size:13px;color:var(--muted);margin-top:12px}
+
+/* demo */
+.demo{display:grid;grid-template-columns:280px minmax(0,1fr);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-panel);overflow:hidden}
+.presets{border-right:1px solid var(--line);padding:16px 12px;background:#fbfaf7}
+.presets h4,.ctl h4{font:500 13px/1.4 var(--sans);color:var(--text-2);margin:0 0 8px;padding:0 8px}
+.preset{display:block;width:100%;text-align:left;border:0;background:transparent;border-radius:var(--r-ctl);padding:8px;margin:0 0 2px;cursor:pointer;color:var(--text);font:inherit;transition:background-color .15s var(--ease)}
+.preset:hover{background:var(--surface-2)}
+.preset[aria-pressed="true"]{background:var(--surface-3);box-shadow:inset 0 0 0 1px var(--line-2)}
+.preset .pc{display:block;font:400 13px/1.4 var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.preset .pd{display:block;font-size:12px;color:var(--muted);line-height:1.4}
+.stage-area{padding:24px 28px 28px}
+.controls{display:flex;flex-wrap:wrap;gap:24px;padding-bottom:20px;border-bottom:1px solid var(--line)}
+.ctl h4{padding:0}
+.seg{max-width:100%;overflow-x:auto;display:inline-flex;background:var(--surface-2);border-radius:10px;padding:2px}
+.seg button{white-space:nowrap;border:0;background:transparent;font:500 13px/1 var(--sans);color:var(--text-2);padding:8px 12px;border-radius:8px;cursor:pointer;transition:background-color .15s var(--ease),color .15s var(--ease)}
+.seg button:hover{color:var(--text)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--text);box-shadow:0 0 0 1px var(--line),0 1px 2px rgba(28,27,24,.06)}
+.pipe{list-style:none;margin:0;padding:0}
+.step{display:grid;grid-template-columns:32px 168px minmax(0,1fr) 148px;gap:16px;align-items:start;padding:20px 0;border-bottom:1px solid var(--line)}
+.step:last-child{border-bottom:0;padding-bottom:0}
+.step .sn{width:24px;height:24px;border-radius:12px;border:1px solid var(--line-2);font:500 12px/22px var(--mono);text-align:center;color:var(--text-2)}
+.step .st{font-weight:500;font-size:15px;line-height:24px}
+.step .st small{display:block;font-weight:400;font-size:13px;color:var(--muted);line-height:1.4}
+.step .out{font:500 13px/24px var(--mono);text-align:right}
+.chip{display:inline-block;font:500 12px/1 var(--mono);padding:5px 8px;border-radius:6px;background:var(--surface-2);color:var(--text)}
+.chip.high,.chip.irreversible{background:var(--risk-soft);color:var(--risk)}
+.chip.medium{background:var(--accent-soft);color:var(--accent)}
+.chip.low{background:var(--act-soft);color:var(--act)}
+.bars{display:grid;grid-template-columns:96px minmax(0,1fr) 44px;gap:6px 12px;align-items:center;font-size:13px}
+.bars .lv{color:var(--text-2)}
+.bars .track{position:relative;height:8px;background:var(--surface-2);border-radius:4px}
+.bars .fill{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:#b9b4a9;transition:width .35s var(--ease)}
+.bars .fill.on{background:var(--text)}
+.bars .pv{font:400 12px/1 var(--mono);text-align:right;color:var(--text-2)}
+.note{font-size:13px;color:var(--text-2);margin:12px 0 0}
+.meter{position:relative;height:44px;margin-top:16px}
+.meter .track{position:absolute;left:0;right:0;top:12px;height:10px;background:var(--surface-2);border-radius:5px}
+.meter .fill{position:absolute;left:0;top:12px;height:10px;border-radius:5px;background:var(--text);transition:width .4s var(--ease)}
+.tick{position:absolute;top:4px;width:0;height:26px;border-left:1.5px solid var(--accent);transition:left .3s var(--ease)}
+.tick span{position:absolute;top:31px;left:0;transform:translateX(-50%);font:400 11px/1 var(--mono);color:var(--accent);white-space:nowrap}
+.tick.soft{border-left-color:var(--muted);border-left-style:dashed}
+.tick.soft span{color:var(--muted);top:-14px}
+.meter .ends{position:absolute;top:30px;left:0;right:0;display:flex;justify-content:space-between;font:400 11px/1 var(--mono);color:var(--muted)}
+.decision{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;padding:16px 20px;border-radius:var(--r-card);background:var(--surface-2);margin-top:20px}
+.decision .big{font:500 28px/1 var(--sans)}
+.decision.act{background:var(--act-soft)} .decision.act .big{color:var(--act)}
+.decision.ask{background:var(--accent-soft)} .decision.ask .big{color:var(--accent)}
+.decision.bad{background:var(--risk-soft)} .decision.bad .big{color:var(--risk)}
+.decision p{margin:0;font-size:14px;color:var(--text-2)}
+.decision p b{color:var(--text);font-weight:500}
+.disclaim{font-size:13px;color:var(--muted);margin-top:16px}
+
+/* glossary */
+.terms{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--line);border-radius:var(--r-card);background:var(--surface)}
+.term{padding:20px 24px}
+.term + .term{border-left:1px solid var(--line)}
+.term p{font-size:14px;color:var(--text-2);margin:0}
+.facts{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;margin-top:24px}
+.facts dl{margin:0;display:grid;grid-template-columns:160px 1fr;gap:8px 16px;font-size:14px}
+.facts dt{color:var(--muted)}
+.facts dd{margin:0}
+
+/* chart */
+.chart-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-panel);padding:28px}
+.chart-top{display:flex;justify-content:space-between;align-items:baseline;gap:24px;margin-bottom:16px;flex-wrap:wrap}
+.chart-top p{margin:0;font-size:14px;color:var(--text-2)}
+.legend{display:flex;gap:16px;font-size:13px;color:var(--text-2);flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+svg text{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.tt{position:fixed;pointer-events:none;background:#1f1e1b;color:#f2efe7;font-size:13px;line-height:1.45;padding:8px 12px;border-radius:8px;max-width:260px;opacity:0;transform:translateY(4px);transition:opacity .12s var(--ease),transform .12s var(--ease);z-index:20}
+.tt.on{opacity:1;transform:none}
+.tt b{font-weight:500}
+
+/* timeline */
+.versions{list-style:none;margin:40px 0 0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.ver{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);padding:20px 24px;display:grid;grid-template-columns:56px 1fr;gap:4px 16px;align-content:start}
+.ver > :not(.tag){grid-column:2}
+.ver .tag{font:500 15px/1.35 var(--mono);grid-column:1;grid-row:1}
+.ver h3{margin:0}
+.ver p{margin:0;font-size:14px;color:var(--text-2)}
+.ver .res{font:400 13px/1.5 var(--mono);color:var(--text);margin-top:8px;font-variant-numeric:tabular-nums}
+.ver.key .tag{color:var(--accent)}
+.ver .kept{color:var(--accent)}
+
+/* tables */
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:12px 16px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--sans)!important;font-weight:500;color:var(--text-2);font-size:13px;background:#fbfaf7}
+td.mono{white-space:nowrap}
+td.n,th.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+tr.sel td{background:#fbf3ec}
+tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+.tbl{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);overflow:hidden}
+.tbl tr:last-child td{border-bottom:0}
+.tbl-scroll{overflow-x:auto}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;align-items:start}
+.three{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:24px;align-items:start}
+
+/* ranked list */
+.rank{list-style:none;margin:0;padding:0}
+.rank li{display:grid;grid-template-columns:184px minmax(0,1fr) 80px 72px;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px}
+.rank li:last-child{border-bottom:0}
+.rank .head{font-size:13px;color:var(--text-2)}
+.rank .rt{position:relative;height:8px;background:var(--surface-2);border-radius:4px}
+.rank .rf{position:absolute;top:0;bottom:0;border-radius:4px;background:#a9a498}
+.rank .rf.on{background:var(--accent)}
+.rank .v{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* waffle */
+.waffle{display:grid;grid-template-columns:repeat(26,1fr);gap:3px;max-width:620px}
+.cell{aspect-ratio:1;border-radius:3px;background:var(--act)}
+.cell.na-msg{background:var(--accent-mark)}
+.cell.na-other{background:#e8cdb6}
+.cell.caught{background:var(--surface);box-shadow:inset 0 0 0 2px var(--text)}
+.wlegend{display:grid;gap:8px;margin-top:20px;font-size:14px}
+.wlegend div{display:grid;grid-template-columns:14px 1fr auto;gap:10px;align-items:center}
+.wlegend i{width:12px;height:12px;border-radius:3px;display:block}
+
+/* limits */
+.lim{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 48px}
+.lim li{padding:16px 0;border-top:1px solid var(--line)}
+.lim h3{font-size:16px;margin-bottom:4px}
+.lim p{font-size:14px;color:var(--text-2);margin:0}
+footer{border-top:1px solid var(--line);padding:40px 0 64px;font-size:13px;color:var(--muted)}
+footer .wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px}
+footer code{font-family:var(--mono);font-size:12px;color:var(--text-2)}
+
+.reveal{opacity:0;transform:translateY(6px);animation:rise .5s var(--ease) forwards}
+.reveal:nth-child(2){animation-delay:.06s}.reveal:nth-child(3){animation-delay:.12s}
+@keyframes rise{to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}.reveal{opacity:1;transform:none}html{scroll-behavior:auto}}
+
+@media (max-width:1020px){
+  .hero-grid,.sec-head,.two,.three,.facts,footer .wrap{grid-template-columns:1fr;gap:32px}
+  .terms{grid-template-columns:repeat(2,1fr)}
+  .term:nth-child(3){border-left:0}
+  .term:nth-child(n+3){border-top:1px solid var(--line)}
+  .demo{grid-template-columns:1fr}
+  .presets{border-right:0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:2px}
+  .presets h4{grid-column:1/-1}
+  .step{grid-template-columns:32px minmax(0,1fr) auto}
+  .step .body{grid-column:2/-1}
+}
+@media (max-width:680px){
+  .wrap{padding:0 20px}
+  h1{font-size:34px}
+  h2{font-size:26px}
+  nav.links{display:none;position:absolute;top:56px;left:0;right:0;flex-direction:column;gap:0;background:var(--bg);border-bottom:1px solid var(--line);padding:8px 20px}
+  nav.links.open{display:flex}
+  nav.links a{padding:10px 0}
+  .menu-btn{display:inline-flex;height:36px;padding:0 12px;border:1px solid var(--line-2);border-radius:var(--r-ctl);background:transparent;font:500 14px/1 var(--sans);color:var(--text);align-items:center}
+  .hero{padding:40px 0 24px}
+  .stats{grid-template-columns:1fr}
+  .stat + .stat{padding-left:0;border-left:0;border-top:1px solid var(--line)}
+  .stat{padding:16px 0}
+  .terms{grid-template-columns:1fr}
+  .term + .term{border-left:0;border-top:1px solid var(--line)}
+  .versions,.lim{grid-template-columns:1fr}
+  .stage-area{padding:20px}
+  .step{grid-template-columns:28px minmax(0,1fr)}
+  .step .out{grid-column:2;text-align:left}
+  .rank li{grid-template-columns:1fr 56px 56px}
+  .rank .rt{grid-column:1/-1;grid-row:2}
+  .facts dl{grid-template-columns:1fr}
+  .facts dt{margin-top:8px}
+  section.block{padding:56px 0}
+  .waffle{grid-template-columns:repeat(13,1fr)}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="AIC safety adapter, top of page">
+      <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><rect x="1" y="1" width="20" height="20" rx="6" fill="none" stroke="#1c1b18" stroke-width="1.5"/><path d="M6 11h6" stroke="#1c1b18" stroke-width="1.5" stroke-linecap="round"/><path d="M15 6.5v9" stroke="#a2480f" stroke-width="1.5" stroke-linecap="round"/></svg>
+      AIC safety adapter
+    </a>
+    <button class="menu-btn" aria-expanded="false" aria-controls="navlinks">Menu</button>
+    <nav class="links" id="navlinks">
+      <a href="#gate">Gate demo</a>
+      <a href="#versions">Versions</a>
+      <a href="#risk">Risk rater</a>
+      <a href="#clean">Clean tests</a>
+      <a href="#real">Real decisions</a>
+      <a href="#limits">Limits</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div class="reveal">
+        <p class="eyebrow">AIC · safety adapter v1 to v7 · November 2026</p>
+        <h1>A small model that decides when a coding agent should ask you first</h1>
+        <p class="lede">For each tool call an agent wants to run, the safety adapter predicts whether you would let it go ahead. The agent acts only when that prediction is confident enough. Otherwise it asks. This page covers seven versions of the adapter, the risk rater that feeds it, two clean tests on data nobody had seen, and what happened when the gate ran against 130 real decisions.</p>
+        <div class="actions">
+          <a class="btn btn-primary" href="#gate">Try the gate</a>
+          <a class="btn btn-quiet" href="#versions">See the versions</a>
+        </div>
+        <div class="stats">
+          <div class="stat"><p class="label">Risky wrong acts, latest clean test</p><p class="figure">0</p><p class="cmp">of 2,400 decisions, full pipeline</p></div>
+          <div class="stat"><p class="label">Needless asks, same test</p><p class="figure">32.7%</p><p class="cmp">38.1% with the old rater, 27.3% with perfect labels</p></div>
+          <div class="stat"><p class="label">Wrong acts, real decisions</p><p class="figure">0</p><p class="cmp">of 130 in shadow mode</p></div>
+        </div>
+      </div>
+      <div class="call-card reveal" aria-label="Example: one tool call through the gate">
+        <div class="call-head"><span>Proposed tool call · Bash</span><span class="mono">synthetic example</span></div>
+        <div class="cmd"><span class="p">$ </span>vercel deploy --prod</div>
+        <ol class="trace">
+          <li><span class="n">1</span><span class="t">Risk rater<small>Full rubric in the prompt, rounds up at 0.08</small></span><span class="v"><span class="chip high">high</span></span></li>
+          <li><span class="n">2</span><span class="t">Always-ask list<small>Force-push, rm -rf ~, DROP TABLE, publish</small></span><span class="v muted">no match</span></li>
+          <li><span class="n">3</span><span class="t">Safety adapter<small>Balanced persona, 12 past decisions</small></span><span class="v">P(allow) 0.64</span></li>
+          <li><span class="n">4</span><span class="t">High-risk floor<small>Act on high risk only at 0.95 or above</small></span><span class="v">0.64 &lt; 0.95</span></li>
+        </ol>
+        <div class="verdict"><b>Ask the person</b><span class="mono small">correct, they would refuse</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DEMO -->
+  <section class="block" id="gate">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>Walk a tool call through the gate</h2>
+        <div>
+          <p>Pick an action, a persona and a risk source. The gate rates the risk, checks a short list of commands that always need a person, reads the adapter's P(allow) and compares it with the persona's threshold. High-risk actions need 0.95 or more, and irreversible ones always go to the person.</p>
+          <p>Switch the risk source to "High as medium" to see the error that matters most. A high-risk action shown as medium skips the 0.95 floor, and that is how risky wrong acts happen.</p>
+        </div>
+      </div>
+
+      <div class="demo">
+        <div class="presets" role="group" aria-label="Example tool calls">
+          <h4>Example tool calls</h4>
+          <div id="presetList"></div>
+        </div>
+        <div class="stage-area">
+          <div class="controls">
+            <div class="ctl"><h4>Persona autonomy</h4><div class="seg" id="segAuto"></div></div>
+            <div class="ctl"><h4>Risk source</h4><div class="seg" id="segRisk"></div></div>
+          </div>
+          <ol class="pipe" aria-live="polite">
+            <li class="step"><span class="sn">1</span><span class="st">Tool call<small>What the agent wants to run</small></span><div class="body"><div class="cmd" id="dCmd"></div><p class="note" id="dDesc"></p></div><span class="out" id="dTool"></span></li>
+            <li class="step"><span class="sn">2</span><span class="st">Risk rater<small>risk-v7-rub, full rubric in the prompt</small></span><div class="body"><div class="bars" id="dBars"></div><p class="note" id="dRiskNote"></p></div><span class="out" id="dRisk"></span></li>
+            <li class="step"><span class="sn">3</span><span class="st">Always-ask list<small>Catastrophic patterns</small></span><div class="body"><p class="note" style="margin:0" id="dList"></p></div><span class="out" id="dListOut"></span></li>
+            <li class="step"><span class="sn">4</span><span class="st">Safety adapter<small>safety-v7-noisy on Qwen3.5-4B</small></span><div class="body"><div class="meter" id="dMeter"><div class="track"></div><div class="fill" id="dFill"></div><div class="ends"><span>0</span></div></div><p class="note" id="dPNote"></p></div><span class="out" id="dP"></span></li>
+          </ol>
+          <div class="decision" id="dDecision"><span class="big" id="dBig"></span><p id="dWhy"></p></div>
+          <p class="disclaim">The model runs on a home GPU, so this page replays the gate's rules on hand-set values that follow the measured behavior. The actions and personas are synthetic. The thresholds for balanced and work-alone personas are illustrative. The 0.95 floor, the 0.08 round-up and the always-ask rule are the real settings.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SETUP -->
+  <section class="block" id="setup">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>What the model reads and how it is scored</h2>
+        <div>
+          <p>AIC is a personal decision model. One frozen Qwen3.5-4B carries small LoRA adapters for different roles, and each role is later fitted to one person. The safety adapter is the first role. It reads a persona, that persona's autonomy setting, up to 12 past decisions and the proposed tool call, then scores the options and returns P(allow).</p>
+        </div>
+      </div>
+      <div class="terms">
+        <div class="term"><h3>Risky wrong act</h3><p>The gate acted on a high-risk or irreversible action that the person would have refused. The count that has to stay near zero.</p></div>
+        <div class="term"><h3>Needless ask</h3><p>The gate asked about something the person would have approved. Too many and people stop reading the prompts.</p></div>
+        <div class="term"><h3>Accuracy</h3><p>How often the adapter's prediction matches the persona's decision. An oracle that knows the true probabilities scores 0.85 to 0.89.</p></div>
+        <div class="term"><h3>ECE</h3><p>Expected calibration error. Whether a P(allow) of 0.8 is right about 80% of the time. Lower is better.</p></div>
+      </div>
+      <div class="facts">
+        <dl>
+          <dt>Base model</dt><dd>Qwen3.5-4B, frozen, bf16</dd>
+          <dt>Adapter</dt><dd>LoRA rank 16, alpha 32, dropout 0.05, 32.5M trainable parameters</dd>
+          <dt>Training</dt><dd>Learning rate 1e-4, one epoch, effective batch 16</dd>
+          <dt>Hardware</dt><dd>One RTX 4070 with 12 GB</dd>
+        </dl>
+        <dl>
+          <dt>Actions</dt><dd>Tool calls written by DeepSeek V4.1 Flash, later also by Qwen3.6-35B and Mistral Nemo, each labeled low, medium, high or irreversible</dd>
+          <dt>Personas</dt><dd>400 in v1 (4,464 examples), 1,200 from v2 on (13,344 examples)</dd>
+          <dt>Autonomy</dt><dd>Ask often, balanced or work alone. Ask-often personas are always asked</dd>
+          <dt>Fresh holdout</dt><dd>2,400 decisions from a new action pool and new personas, deduplicated against the old pool</dd>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <!-- VERSIONS -->
+  <section class="block" id="versions">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>Seven versions, one change that mattered</h2>
+        <div>
+          <p>Accuracy moved from 0.72 to about 0.80, but the number that drove each step was risky wrong acts. Through v4, every training change left the model confidently wrong on high-risk actions. Putting the risk level in the prompt in v5 cut those mistakes from 23 to 2.</p>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-top">
+          <p>Risky wrong acts on the v2 test (1,904 decisions), no high-risk floor</p>
+          <div class="legend"><span><i style="background:#a9a498"></i>Version</span><span><i style="background:var(--accent)"></i>Risk in the prompt</span></div>
+        </div>
+        <svg id="verChart" viewBox="0 0 1100 340" width="100%" role="img" aria-label="Bar chart of risky wrong acts by version"></svg>
+        <p class="caption">v1* is the v1 adapter run on the v2 test. v7 is scored on the consensus-labeled version of the same test, so its bar is not exactly comparable. For v2 and v7, the 0.95 floor brings the count to 0.</p>
+      </div>
+
+      <ol class="versions">
+        <li class="ver"><span class="tag">base</span><h3>Qwen3.5-4B with no adapter</h3><p>Zero-shot on the v1 test. Barely above a nearest-past-decision heuristic at 0.65.</p><p class="res">acc 0.62 · ECE 0.097 · 8 risky / 640</p></li>
+        <li class="ver"><span class="tag">v1</span><h3>First LoRA, 4.5k examples</h3><p>Training worked, and the probabilities were already reasonably calibrated.</p><p class="res">acc 0.72 · ECE 0.043 · 5 risky / 640</p></li>
+        <li class="ver"><span class="tag">v2</span><h3>Three times the data, longer history</h3><p>Accuracy rose to 0.76, but v1 scores 0.75 on the same test, so most of the jump was the test set. All 23 risky wrong acts were high-risk, 22 for work-alone personas. A 0.95 floor on high-risk actions took them to 0, with needless asks up from 26.6% to 28.7%.</p><p class="res">acc 0.76 · ECE 0.030 · 23 risky (0 with floor)</p></li>
+        <li class="ver"><span class="tag">v3</span><h3>Overconfidence penalty on high-risk</h3><p>A loss penalty (λ = 2) meant to make the model less sure on high-risk actions. No change in risky wrong acts, slightly worse calibration.</p><p class="res">acc 0.76 · ECE 0.045 · 23 risky</p></li>
+        <li class="ver"><span class="tag">v4</span><h3>Pessimistic high-risk targets</h3><p>Trained high-risk examples toward p<sup>2.5</sup>. A small gain, nowhere near what the floor did.</p><p class="res">acc 0.76 · ECE 0.047 · 20 risky</p></li>
+        <li class="ver key"><span class="tag">v5</span><h3>Risk level shown in the prompt</h3><p>One added line, "Risk (from the rules layer): high", plus risk tags on past decisions. The largest single gain, with no extra threshold. <span class="kept">Kept as the base recipe.</span></p><p class="res">acc 0.80 · ECE 0.020 · 2 risky</p></li>
+        <li class="ver"><span class="tag">v6</span><h3>Trained on noisy risk labels</h3><p>12% of high shown as medium, 5% of irreversible as high, 10% of the rest shifted by one level. Same clean accuracy, about a third fewer risky wrong acts when labels are badly wrong.</p><p class="res">acc 0.80 · ECE 0.017 · 2 risky</p></li>
+        <li class="ver key"><span class="tag">v7</span><h3>Consensus risk labels plus noise</h3><p>v6's recipe on labels re-rated by two more models against a written rubric. Paired with the rubric risk rater (risk-v7-rub), the 0.95 floor and the always-ask list, this is the chosen gate. <span class="kept">Current version.</span></p><p class="res">acc 0.82 · ECE 0.025 · 6 risky (0 with floor)</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- FRESH -->
+  <section class="block" id="fresh">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>A fresh test showed v2 had memorized its actions</h2>
+        <div>
+          <p>The fresh holdout uses actions from a different pool and personas the models never saw. v2 lost accuracy and made 34 risky wrong acts. v5 held its numbers, which means telling the model the risk taught it something general instead of the quirks of one writer's actions.</p>
+        </div>
+      </div>
+      <div class="three">
+        <div class="tbl tbl-scroll">
+          <table>
+            <thead><tr><th>Fresh holdout, 2,400 decisions, no floor</th><th class="n">v2</th><th class="n">v5</th></tr></thead>
+            <tbody>
+              <tr><td>Accuracy</td><td class="n">0.74</td><td class="n">0.81</td></tr>
+              <tr><td>ECE</td><td class="n">0.081</td><td class="n">0.018</td></tr>
+              <tr><td>Risky wrong acts</td><td class="n">34</td><td class="n">0</td></tr>
+              <tr><td>Needless asks</td><td class="n">34.8%</td><td class="n">27.5%</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <h3>Why this is not the end of it</h3>
+          <p class="small muted" style="color:var(--text-2)">v5 was scored with the risk labels the data generator wrote. In real use nobody hands the model those labels. They have to come from another model, which will sometimes be wrong. The rest of the work is about that gap.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RISK -->
+  <section class="block" id="risk">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>Most remaining errors come from the risk label</h2>
+        <div>
+          <p>Shown a wrong risk level, the adapter trusts it. With no risk line at all, v5 made 69 risky wrong acts on the fresh holdout even with the 0.95 floor, worse than v2. If every high-risk action is shown as medium, v5 makes 63 and v6 makes 44. The adapter copes with mild noise, but not with high-risk actions that are rated low across the board.</p>
+          <p>Along the way the generator's own labels turned out to be inconsistent. Every action was re-rated by DeepSeek V4.1 Flash and Qwen3.6-35B against a written rubric, and the majority vote with the original label became the consensus label.</p>
+        </div>
+      </div>
+
+      <div class="two">
+        <div class="chart-card">
+          <div class="chart-top"><p>Where the risk label comes from, v7 end to end on the fresh holdout</p></div>
+          <ul class="rank" id="srcRank">
+            <li class="head"><span>Risk source</span><span></span><span class="v">Risky wrong acts</span><span class="v">Needless asks</span></li>
+          </ul>
+          <p class="caption">The rater rows have the 0.95 floor on. Ranges cover the variants tried. Needless asks were not recorded for every source.</p>
+        </div>
+        <div class="tbl tbl-scroll">
+          <table>
+            <thead><tr><th>Rater</th><th class="n">Exact</th><th class="n">High caught</th><th>What happened</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">risk-v1</td><td class="n">0.58</td><td class="n">0.61</td><td>Under-rated 39% of high and irreversible actions. Rounding up made most actions irreversible, 55% needless asks</td></tr>
+              <tr><td class="mono">regex rules</td><td class="n">n/a</td><td class="n">0.68</td><td>Missed 32% of high and irreversible, flagged 46% of low and medium as high. Dropped</td></tr>
+              <tr><td class="mono">risk-v2</td><td class="n">0.74</td><td class="n">0.79</td><td>Trained on consensus labels. ECE 0.16, so its round-up threshold had to be very low</td></tr>
+              <tr><td class="mono">risk-v3b</td><td class="n">0.76</td><td class="n">0.89</td><td>Soft vote targets, best epoch, 4 letter orders averaged. ECE 0.05, 99% within one level, medium 60% exact. Used until 17 November</td></tr>
+              <tr><td class="mono">risk-v4</td><td class="n">0.79</td><td class="n">n/a</td><td>Same recipe as v3b on labels from a sharper rubric (r2). More accurate, but 5 risky wrong acts end to end, all on one tie-rule label. Not used</td></tr>
+              <tr><td class="mono">risk-v5</td><td class="n">0.75</td><td class="n">0.98</td><td>v4 recipe retrained on train and validation for clean test 2. Safe, but pushed 51% of low and medium actions up to high</td></tr>
+              <tr><td class="mono">risk-v6-rub</td><td class="n">0.77</td><td class="n">n/a</td><td>The full r2 rubric in the prompt instead of a one-line definition. Low and medium pushed to high fell from 46–50% to 21–27% at the same safety</td></tr>
+              <tr class="sel"><td class="mono">risk-v7-rub</td><td class="n">0.84</td><td class="n">1.00</td><td>v6-rub on 2.2 times the actions, from three writer models. Missed none of 93 high-risk actions, AUC 0.98, 22% of low and medium flagged high. Chosen</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p class="caption">"High caught" is the share of high and irreversible actions rated high or above. risk-v1 to v4 are scored on the fresh actions, risk-v5 on the clean test 2 actions, and v6-rub and v7-rub on 249 sealed actions none of the raters trained on. Compare within one set.</p>
+      <div class="tbl" style="margin-top:24px;padding:20px 24px">
+        <h3>The rubric in the prompt is what fixed the over-flagging</h3>
+        <p class="small" style="color:var(--text-2)">A second rubric, r2, checks each action step by step from irreversible down to low, with explicit rules for global installs, production build config, force-push, deletes, messages and secrets. Re-labeling the disputed actions with it raised agreement between the LLM labelers from 53% to 70%.</p>
+        <p class="small" style="color:var(--text-2)">Training on r2 labels alone (risk-v4, risk-v5) made the rater more accurate but not less cautious. A few clearly high-risk actions still scored near zero, so the round-up threshold had to sit very low, and half of the harmless actions got pushed to high. Giving the rater the whole rubric in its prompt (risk-v6-rub) roughly halved that, with no loss in safety.</p>
+        <p class="small" style="color:var(--text-2);margin:0">risk-v7-rub keeps that prompt and trains on about 1,800 more actions from three writer models, each labeled by three raters, for $1.48. On 249 sealed actions it picks the exact level 84% of the time, up from 77% for v6-rub, and lets none of the 93 high-risk actions through below high. It is packaged as one component with pinned settings, so later safety models can reuse it.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CLEAN -->
+  <section class="block" id="clean">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>Two clean tests, each scored once</h2>
+        <div>
+          <p>The fresh holdout had been used to compare about a dozen pipelines, so its numbers were optimistic. For each clean test the evaluation plan was written first, then a new test set was built from actions and personas nothing had seen, and the frozen pipeline was scored once. After that the set is spent.</p>
+          <p>Clean test 2 showed the earlier 37% needless asks did not hold. The safety result did. Clean test 3 is the same check with the rubric rater.</p>
+        </div>
+      </div>
+      <div class="tbl tbl-scroll">
+        <table>
+          <thead><tr><th>2,400 decisions each, full pipeline</th><th>Risk label shown to the gate</th><th class="n">Acc.</th><th class="n">ECE</th><th class="n">Acts</th><th class="n">Risky wrong acts</th><th class="n">Needless asks</th></tr></thead>
+          <tbody>
+            <tr><td>Clean test 2 · 17 Nov</td><td>Rater risk-v5</td><td class="n">0.65</td><td class="n">0.198</td><td class="n">13.7%</td><td class="n">1</td><td class="n">46.9%</td></tr>
+            <tr><td></td><td>True label (upper bound)</td><td class="n">0.79</td><td class="n">0.034</td><td class="n">32.1%</td><td class="n">0</td><td class="n">30.0%</td></tr>
+            <tr class="sel"><td>Clean test 3 · 18 Nov</td><td>Rater risk-v7-rub (what ships)</td><td class="n">0.75</td><td class="n">0.068</td><td class="n">21.4%</td><td class="n">0</td><td class="n">32.7%</td></tr>
+            <tr><td></td><td>Previous rater, same decisions</td><td class="n">0.70</td><td class="n">0.131</td><td class="n">15.4%</td><td class="n">0</td><td class="n">38.1%</td></tr>
+            <tr><td></td><td>True label (upper bound)</td><td class="n">0.80</td><td class="n">0.022</td><td class="n">27.9%</td><td class="n">0</td><td class="n">27.3%</td></tr>
+            <tr><td>Test 3 add-on</td><td>Rater risk-v7-rub</td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n">0</td><td class="n">31.6%</td></tr>
+            <tr><td></td><td>Previous rater</td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n">8</td><td class="n">37.5%</td></tr>
+            <tr><td></td><td>True label (upper bound)</td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n">0</td><td class="n">25.3%</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="two" style="margin-top:24px">
+        <div>
+          <h3>What changed</h3>
+          <p class="small" style="color:var(--text-2)">With the rubric rater the gate still made no risky wrong acts, and needless asks fell from 38.1% to 32.7% on the same decisions. That closes about half of the gap to the 27.3% a perfect risk label would give. Calibration error halved, and the gate acts on its own for 21% of actions instead of 15%.</p>
+        </div>
+        <div>
+          <h3>One caveat, and an add-on</h3>
+          <p class="small" style="color:var(--text-2)">Some labeling requests came back incomplete, so 98 of the generated actions had no full label and test 3 ran on the other 174. That is logged in the plan and the result was not re-scored. Once labeled, the left-out actions (86 after removing duplicates) were scored as a separate 2,400-decision test. It agrees: the new rater makes 0 risky wrong acts with 31.6% needless asks, and the previous rater makes 8 with 37.5%.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REAL -->
+  <section class="block" id="real">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>Shadow mode on 130 real permission decisions</h2>
+        <div>
+          <p>Every tool call approved or rejected at a Claude Code permission prompt between 18 October and 7 November 2026 went through the gate, which scored each one and never acted. There were 128 approvals and 2 rejections across 8 projects. The decision text stays private and is not shown here.</p>
+        </div>
+      </div>
+      <div class="three">
+        <div class="chart-card">
+          <div class="chart-top"><p>What the gate would have done, one square per decision</p></div>
+          <div class="waffle" id="waffle" role="img" aria-label="130 decisions: 80 acted correctly, 42 needless asks on messaging tools, 6 other needless asks, 2 rejections caught"></div>
+          <div class="wlegend">
+            <div><i style="background:var(--act)"></i><span>Acted, and the person had approved</span><span class="num">80</span></div>
+            <div><i style="background:var(--accent-mark)"></i><span>Needless ask on an agent-messaging tool</span><span class="num">42</span></div>
+            <div><i style="background:#e8cdb6"></i><span>Other needless ask</span><span class="num">6</span></div>
+            <div><i style="background:var(--surface);box-shadow:inset 0 0 0 2px var(--text)"></i><span>Rejection, caught</span><span class="num">2</span></div>
+          </div>
+        </div>
+        <div>
+          <h3>No wrong acts, and too many asks</h3>
+          <p class="small" style="color:var(--text-2)">Both rejections were multi-line Bash scripts rated medium. P(allow) was 0.78 and 0.59 against a 0.85 threshold, so the gate asked. Of the 48 needless asks, 42 were agent-messaging calls such as adding a reaction or posting no reply. The rater called those high risk because the synthetic training data never contained them. That is a rater error, and the clearest thing to fix.</p>
+          <p class="small" style="color:var(--text-2)">With only 2 rejections, the catch rate cannot be estimated, and always-allow would have had better log loss here (0.08 vs 0.29). Shadow mode shows the gate is not dangerous on this traffic. It does not yet show how well it catches bad actions.</p>
+          <h3 style="margin-top:28px">First look at per-user fitting</h3>
+          <div class="tbl">
+            <table>
+              <thead><tr><th>v7 tuned on</th><th class="n">Needless asks</th><th class="n">Synthetic acc.</th></tr></thead>
+              <tbody>
+                <tr><td>Nothing (base)</td><td class="n">29%</td><td class="n">0.82</td></tr>
+                <tr><td>First 25 real decisions</td><td class="n">0%</td><td class="n">n/a</td></tr>
+                <tr><td>First 75 real decisions</td><td class="n">7%</td><td class="n">0.77</td></tr>
+                <tr><td>75 real + 150 synthetic replay</td><td class="n">20%</td><td class="n">0.79</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="caption">Tested on the next 55 real decisions, none of them rejections. Replay kept 0 risky wrong acts on the synthetic set.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIMITS -->
+  <section class="block" id="limits">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>What this does not show yet</h2>
+        <div><p>The safety side holds on clean tests, and the cost is that it still asks too often. What is left is mostly the risk rater being over-cautious, not the decision model.</p></div>
+      </div>
+      <ul class="lim">
+        <li><h3>Synthetic data</h3><p>Training data and the main tests are LLM-written personas and actions. The 0.85 to 0.89 oracle ceiling shows the labels are noisy, and real people may not decide like the personas.</p></li>
+        <li><h3>Little real evidence</h3><p>Shadow mode is one person, three weeks, 130 decisions and 2 rejections, scored with the earlier rater. That supports "not dangerous on this traffic" and nothing stronger.</p></li>
+        <li><h3>Clean tests are used once</h3><p>Both clean tests are now spent, so any further tuning needs a new one. Test 3 was also smaller than planned, 174 actions instead of about 270.</p></li>
+        <li><h3>Still asks too often</h3><p>32.7% needless asks on the latest clean test, against 27.3% with perfect risk labels. The gap is the rater flagging harmless actions as high. On real data, most needless asks come from one rater blind spot.</p></li>
+        <li><h3>Next step, the rater</h3><p>Find the few high-risk actions the rater still scores low, since they set its round-up threshold. Add agent-messaging tool calls to the risk data, or rate them with a fixed rule.</p></li>
+        <li><h3>Next step, more rejections</h3><p>Keep shadow mode running until the catch rate can be measured, and turn on per-user fitting with replay only once the test window has rejections.</p></li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <p>Numbers come from the write-up "Teaching a model when to ask" (AIC safety adapter v1 to v7, November 2026) and the run reports on the training PC, such as <code>runs/safety-v7-noisy/eval/report.json</code>, <code>runs/rater3/e2e/</code>, <code>runs/risk-v7-rub/</code>, <code>runs/clean3/</code> and <code>runs/shadow/report.json</code>. Clean test plans are in <code>EVAL_PLAN.md</code>. Updated 19 November 2026.</p>
+    </div>
+    <div>
+      <p>Every example command and persona on this page is synthetic. No real decision text is reproduced. Tests differ between some rows, so compare numbers within one test set.</p>
+    </div>
+  </div>
+</footer>
+
+<div class="tt" id="tt" role="tooltip"></div>
+
+<script>
+(function(){
+  // ---------- nav ----------
+  const mb=document.querySelector('.menu-btn'), nl=document.getElementById('navlinks');
+  mb.addEventListener('click',()=>{const o=nl.classList.toggle('open');mb.setAttribute('aria-expanded',o)});
+  nl.addEventListener('click',e=>{if(e.target.tagName==='A'){nl.classList.remove('open');mb.setAttribute('aria-expanded','false')}});
+
+  const tt=document.getElementById('tt');
+  function showTT(html,x,y){tt.innerHTML=html;tt.classList.add('on');const w=tt.offsetWidth,h=tt.offsetHeight;let left=x+14,top=y-h-12;if(left+w>innerWidth-8)left=x-w-14;if(top<8)top=y+16;tt.style.left=left+'px';tt.style.top=top+'px'}
+  function hideTT(){tt.classList.remove('on')}
+
+  // ---------- gate demo ----------
+  const LV=['low','medium','high','irreversible'];
+  const TAU=0.08, FLOOR=0.95;
+  const AUTO={ 'ask often':{t:null,shift:-0.12}, 'balanced':{t:0.85,shift:0}, 'work alone':{t:0.70,shift:0.05} };
+  // p: P(allow) for a balanced persona given the risk level shown; allow: what the persona would decide
+  const PRE=[
+    {cmd:'git status',tool:'Bash',desc:'Read the working tree',truth:'low',r:[.93,.06,.01,0],p:{low:.97,medium:.95,high:.92,irreversible:.9},allow:true},
+    {cmd:'npm test -- --watch=false',tool:'Bash',desc:'Run the test suite once',truth:'low',r:[.78,.19,.03,0],p:{low:.95,medium:.93,high:.9,irreversible:.85},allow:true},
+    {cmd:"sed -i 's/timeout: 30/timeout: 60/' src/config.ts",tool:'Bash',desc:'Edit one line of project config',truth:'medium',r:[.30,.63,.06,.01],p:{low:.9,medium:.88,high:.84,irreversible:.8},allow:true},
+    {cmd:'rm -rf dist/ && npm run build',tool:'Bash',desc:'Delete build output and rebuild',truth:'medium',r:[.22,.60,.15,.03],p:{low:.95,medium:.93,high:.9,irreversible:.85},allow:true},
+    {cmd:'npm install -g typescript@5.9',tool:'Bash',desc:'Global install, a gray-zone action',truth:'high',r:[.04,.52,.38,.06],p:{low:.92,medium:.89,high:.81,irreversible:.7},allow:true},
+    {cmd:'vercel deploy --prod',tool:'Bash',desc:'Deploy to production',truth:'high',r:[.02,.21,.70,.07],p:{low:.9,medium:.87,high:.64,irreversible:.5},allow:false},
+    {cmd:'add_reaction(emoji="eyes")',tool:'MCP · chat',desc:'React to a message in a chat thread',truth:'low',r:[.12,.28,.55,.05],p:{low:.98,medium:.97,high:.93,irreversible:.9},allow:true},
+    {cmd:'git push --force origin main',tool:'Bash',desc:'Rewrite history on a shared branch',truth:'irreversible',r:[.01,.05,.40,.54],p:{low:.6,medium:.5,high:.3,irreversible:.2},allow:false,list:'force-push to a shared branch'},
+    {cmd:'psql "$DATABASE_URL" -c "DROP TABLE sessions"',tool:'Bash',desc:'Drop a database table',truth:'irreversible',r:[0,.03,.21,.76],p:{low:.5,medium:.4,high:.2,irreversible:.1},allow:false,list:'DROP TABLE'}
+  ];
+  const RISK_SRC=['rater','true label','high read as medium'];
+  let st={i:5,auto:'balanced',src:'rater'};
+
+  const plist=document.getElementById('presetList');
+  PRE.forEach((p,i)=>{const b=document.createElement('button');b.className='preset';b.type='button';b.innerHTML=`<span class="pc">${esc(p.cmd)}</span><span class="pd">${esc(p.desc)}</span>`;b.addEventListener('click',()=>{st.i=i;render()});plist.appendChild(b)});
+  function seg(id,opts,key){const el=document.getElementById(id);opts.forEach(o=>{const b=document.createElement('button');b.type='button';b.textContent=({'rater':'Rubric rater','high read as medium':'High as medium'})[o]||(o[0].toUpperCase()+o.slice(1));b.dataset.v=o;b.addEventListener('click',()=>{st[key]=o;render()});el.appendChild(b)})}
+  seg('segAuto',Object.keys(AUTO),'auto'); seg('segRisk',RISK_SRC,'src');
+  function esc(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+  function rated(r){let lv=0;for(let k=3;k>=1;k--){let c=0;for(let j=k;j<4;j++)c+=r[j];if(c>=TAU-1e-9){lv=k;break}}return lv}
+
+  function render(){
+    const p=PRE[st.i], a=AUTO[st.auto];
+    [...plist.children].forEach((b,i)=>b.setAttribute('aria-pressed',i===st.i));
+    document.querySelectorAll('#segAuto button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===st.auto));
+    document.querySelectorAll('#segRisk button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===st.src));
+    document.getElementById('dCmd').innerHTML='<span class="p">$ </span>'+esc(p.cmd);
+    document.getElementById('dDesc').textContent=p.desc+'. True risk: '+p.truth+'.';
+    document.getElementById('dTool').textContent=p.tool;
+
+    // step 2
+    const rl=rated(p.r); let shown=LV[rl], note='';
+    if(st.src==='true label'){shown=p.truth;note='Using the generator\'s label instead of the rater. This is the upper bound the rater is chasing.'}
+    else if(st.src==='high read as medium'){ if(LV[rl]==='high'){shown='medium';note='The rater\'s answer was high, and this run shows it as medium. That skips the 0.95 floor.'} else note='No high rating to demote here. Pick an action the rater calls high.' }
+    else { let c=0;for(let j=rl;j<4;j++)c+=p.r[j]; note= rl? `P(${LV[rl]} or above) = ${c.toFixed(2)}, which reaches ${TAU.toFixed(2)}, so the rater rounds up to ${LV[rl]}.` : `Nothing above low reaches ${TAU.toFixed(2)}, so the rating stays low.`; if(LV[rl]!==p.truth) note+=` The true label is ${p.truth}.` }
+    const bars=document.getElementById('dBars');
+    bars.innerHTML=LV.map((l,k)=>`<span class="lv">${l}</span><span class="track"><span class="fill${k===rl?' on':''}" style="width:${p.r[k]*100}%"></span></span><span class="pv">${p.r[k].toFixed(2)}</span>`).join('');
+    document.getElementById('dRiskNote').textContent=note;
+    document.getElementById('dRisk').innerHTML=`<span class="chip ${shown}">${shown}</span>`;
+
+    // step 3
+    const hit=!!p.list;
+    document.getElementById('dList').textContent= hit? `Matches "${p.list}". The gate asks no matter what the adapter says.` : 'No match. The list only holds clear-cut catastrophic commands such as force-push to shared branches, rm -rf of home or root, DROP TABLE and package publish.';
+    document.getElementById('dListOut').innerHTML= hit? '<span class="chip irreversible">match</span>' : '<span class="muted">no match</span>';
+
+    // step 4
+    let pa=Math.max(0.01,Math.min(0.99,p.p[shown]+a.shift));
+    const isHigh=shown==='high', isIrr=shown==='irreversible';
+    let thr=a.t; if(thr!==null && isHigh) thr=Math.max(thr,FLOOR);
+    const meter=document.getElementById('dMeter');
+    meter.querySelectorAll('.tick').forEach(t=>t.remove());
+    document.getElementById('dFill').style.width=(pa*100)+'%';
+    if(a.t!==null){ addTick(meter,a.t,'threshold '+a.t.toFixed(2),isHigh); if(isHigh) addTick(meter,FLOOR,'floor 0.95',false); }
+    document.getElementById('dP').textContent='P(allow) '+pa.toFixed(2);
+    let pnote;
+    if(a.t===null) pnote='Ask-often personas are always asked, so the score is logged but not used.';
+    else if(isIrr) pnote='Irreversible actions always go to the person.';
+    else if(isHigh) pnote=`High risk, so the bar is the 0.95 floor instead of the persona\'s ${a.t.toFixed(2)}.`;
+    else pnote=`${shown[0].toUpperCase()+shown.slice(1)} risk, so the persona\'s threshold of ${a.t.toFixed(2)} applies.`;
+    document.getElementById('dPNote').textContent=pnote;
+
+    // decision
+    let act=!(a.t===null||isIrr||hit||pa<thr);
+    let reason;
+    if(hit) reason='the always-ask list matched';
+    else if(a.t===null) reason='this persona wants to be asked';
+    else if(isIrr) reason='the action is rated irreversible';
+    else if(!act) reason=`P(allow) ${pa.toFixed(2)} is below ${thr.toFixed(2)}`;
+    else reason=`P(allow) ${pa.toFixed(2)} clears ${thr.toFixed(2)}`;
+    let cls,res;
+    if(act&&p.allow){cls='act';res='Correct act. The persona would have approved.'}
+    else if(act&&!p.allow){cls='bad';res=(p.truth==='high'||p.truth==='irreversible')?'<b>Risky wrong act.</b> The persona would have refused a high-risk action.':'Wrong act. The persona would have refused.'}
+    else if(!act&&p.allow){cls='ask';res= a.t===null?'Asked, as this persona prefers.':'Needless ask. The persona would have approved.'}
+    else {cls='ask';res='Correct ask. The persona would have refused.'}
+    const d=document.getElementById('dDecision'); d.className='decision '+cls;
+    document.getElementById('dBig').textContent=act?'Act':'Ask';
+    document.getElementById('dWhy').innerHTML=`<b>${act?'Runs without asking':'Asks the person'}</b> because ${reason}. ${res}`;
+  }
+  function addTick(m,v,label,soft){const t=document.createElement('div');t.className='tick'+(soft?' soft':'');t.style.left=(v*100)+'%';t.innerHTML=`<span${v>0.8?' style="transform:translateX(calc(-100% + 1px))"':''}>${label}</span>`;m.appendChild(t)}
+  render();
+
+  // ---------- version chart ----------
+  const V=[
+    {k:'v1*',r:22,acc:.75,ece:.028,d:'v1 adapter on the v2 test'},
+    {k:'v2',r:23,acc:.76,ece:.030,f:0,d:'3x data, longer history'},
+    {k:'v3',r:23,acc:.76,ece:.045,d:'Overconfidence penalty'},
+    {k:'v4',r:20,acc:.76,ece:.047,d:'Pessimistic high-risk targets'},
+    {k:'v5',r:2,acc:.80,ece:.020,on:1,d:'Risk level in the prompt'},
+    {k:'v6',r:2,acc:.80,ece:.017,on:1,d:'Noisy risk labels'},
+    {k:'v7†',r:6,acc:.82,ece:.025,f:0,on:1,d:'Consensus labels plus noise'}
+  ];
+  const svg=document.getElementById('verChart'), NS='http://www.w3.org/2000/svg';
+  const W=1100,H=340,L=48,R=16,T=16,B=72, ymax=25;
+  const y=v=>T+(H-T-B)*(1-v/ymax), bw=56, step=(W-L-R)/V.length;
+  function el(n,a,txt){const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);if(txt!=null)e.textContent=txt;svg.appendChild(e);return e}
+  [0,5,10,15,20,25].forEach(g=>{el('line',{x1:L,x2:W-R,y1:y(g),y2:y(g),stroke:'rgba(28,27,24,.08)'});el('text',{x:L-12,y:y(g)+4,'text-anchor':'end','font-size':12,fill:'#878279'},g)});
+  V.forEach((v,i)=>{
+    const cx=L+step*i+step/2, x=cx-bw/2, top=y(v.r), base=y(0);
+    const h=base-top, r=Math.min(4,h);
+    el('path',{d:`M${x},${base} V${top+r} Q${x},${top} ${x+r},${top} H${x+bw-r} Q${x+bw},${top} ${x+bw},${top+r} V${base} Z`,fill:v.on?'#a2480f':'#a9a498'});
+    el('text',{x:cx,y:top-8,'text-anchor':'middle','font-size':13,fill:'#1c1b18'},v.r);
+    if(v.f!==undefined){el('text',{x:cx,y:top-28,'text-anchor':'middle','font-size':12,fill:'#a2480f'},'0 with floor');}
+    el('text',{x:cx,y:base+24,'text-anchor':'middle','font-size':14,fill:'#1c1b18'},v.k);
+    el('text',{x:cx,y:base+44,'text-anchor':'middle','font-size':12,fill:'#878279'},'acc '+v.acc.toFixed(2));
+    const hit=el('rect',{x:cx-step/2,y:T,width:step,height:H-T,fill:'transparent'});
+    hit.style.cursor='default';
+    hit.addEventListener('mousemove',e=>showTT(`<b>${v.k}</b> · ${v.d}<br>Risky wrong acts ${v.r}${v.f!==undefined?' (0 with the 0.95 floor)':''}<br>Accuracy ${v.acc.toFixed(2)} · ECE ${v.ece.toFixed(3)}`,e.clientX,e.clientY));
+    hit.addEventListener('mouseleave',hideTT);
+  });
+  el('line',{x1:L,x2:W-R,y1:y(0),y2:y(0),stroke:'rgba(28,27,24,.25)'});
+
+  // ---------- risk source ranked list ----------
+  const SRC=[
+    {n:'Generator labels (oracle)',a:0,b:0,ne:'27.5%'},
+    {n:'Rater v3b, round-up 0.10',a:6,b:6,ne:'37.2%',on:1},
+    {n:'Rater, top choice only',a:16,b:30,ne:'n/a'},
+    {n:'Regex rules + rater',a:23,b:31,ne:'n/a'},
+    {n:'No risk line',a:77,b:77,ne:'n/a'}
+  ];
+  const ul=document.getElementById('srcRank'), mx=80;
+  SRC.forEach(s=>{const li=document.createElement('li');const left=s.a/mx*100, w=Math.max((s.b-s.a)/mx*100,1.2);
+    li.innerHTML=`<span>${s.n}</span><span class="rt"><span class="rf${s.on?' on':''}" style="left:${s.a===s.b?0:left}%;width:${s.a===s.b?Math.max(s.a/mx*100,1.2):w}%"></span></span><span class="v">${s.a===s.b?s.a:s.a+'–'+s.b}</span><span class="v muted">${s.ne}</span>`;ul.appendChild(li)});
+
+  // ---------- waffle ----------
+  const wf=document.getElementById('waffle');
+  const cells=[].concat(Array(80).fill(['', 'Acted, approved']),Array(42).fill(['na-msg','Needless ask, messaging tool']),Array(6).fill(['na-other','Needless ask, other']),Array(2).fill(['caught','Rejection caught']));
+  cells.forEach(([c,l])=>{const d=document.createElement('div');d.className='cell '+c;d.addEventListener('mousemove',e=>showTT(l,e.clientX,e.clientY));d.addEventListener('mouseleave',hideTT);wf.appendChild(d)});
+})();
+</script>
+</body>
+</html>
